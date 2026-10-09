@@ -19,6 +19,7 @@ import com.example.model.GameEvent
 import com.example.model.PlayerColor
 import com.example.model.PlayerInGame
 import com.example.service.OverlayRadarService
+import com.example.util.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +76,7 @@ class SusRadarViewModel(
         val eventDesc = description ?: eventType.ruTitle
         val newEvent = GameEvent(type = eventType, description = eventDesc)
 
+        AppLogger.i("Deduction", "Событие для ${color.ruName}: ${eventType.ruTitle} ('$eventDesc')")
         _eventsFeed.value = listOf(newEvent) + _eventsFeed.value
 
         val weightsMap = learnedWeights.value.associate { it.featureKey to it.weight }
@@ -83,7 +85,9 @@ class SusRadarViewModel(
             if (player.color == color) {
                 val updatedEvents = player.events + newEvent
                 val updatedPlayer = player.copy(events = updatedEvents)
-                DeductionEngine.recalculatePlayerProbabilities(updatedPlayer, weightsMap)
+                val recalculated = DeductionEngine.recalculatePlayerProbabilities(updatedPlayer, weightsMap)
+                AppLogger.d("Deduction", "Пересчет ${color.ruName}: импостор ${recalculated.impostorProbability}%, роль: ${recalculated.predictedRole}")
+                recalculated
             } else {
                 player
             }
@@ -106,10 +110,14 @@ class SusRadarViewModel(
     fun onSpeechRecognized(text: String) {
         _lastRecognizedText.value = text
         OverlayRadarService.updateVoiceMessage(text)
+        AppLogger.i("VoiceEngine", "Распознан голосовой ввод: '$text'")
 
         val parsed = VoiceSpeechParser.parse(text)
         if (parsed.targetColor != null && parsed.eventType != null) {
+            AppLogger.i("VoiceEngine", "Парсер извлёк: цвет=${parsed.targetColor.ruName}, действие=${parsed.eventType.ruTitle}")
             addPlayerEvent(parsed.targetColor, parsed.eventType, parsed.summary)
+        } else {
+            AppLogger.d("VoiceEngine", "Цвет или действие не сопоставлены в реплике")
         }
     }
 

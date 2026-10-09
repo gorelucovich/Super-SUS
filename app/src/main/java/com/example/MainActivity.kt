@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import com.example.data.SusDatabase
 import com.example.ui.MainScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.util.AppLogger
 import com.example.viewmodel.SusRadarViewModel
 import com.example.viewmodel.SusRadarViewModelFactory
 
@@ -23,6 +24,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppLogger.init(applicationContext)
+        AppLogger.i("MainActivity", "onCreate вызван, запуск UI SusRadar")
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {

@@ -10,17 +10,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,8 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.DebugLogDialog
 import com.example.ui.screens.LearningCenterScreen
 import com.example.ui.screens.LiveMatchScreen
 import com.example.ui.screens.OverlayControlScreen
@@ -49,9 +56,11 @@ enum class SusDestination(
     ROLES("Роли", Icons.Default.MenuBook, "nav_roles")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: SusRadarViewModel) {
     var currentDestination by remember { mutableStateOf(SusDestination.RADAR) }
+    var showDebugDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = currentDestination != SusDestination.RADAR) {
         currentDestination = SusDestination.RADAR
@@ -59,6 +68,33 @@ fun MainScreen(viewModel: SusRadarViewModel) {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "SusRadar",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
+                },
+                actions = {
+                    IconButton(
+                        onClick = { showDebugDialog = true },
+                        modifier = Modifier.testTag("top_bar_debug_button")
+                    ) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = "Debug & Логи",
+                            tint = Color(0xFFF59E0B)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        },
         bottomBar = {
             NavigationBar(
                 modifier = Modifier
@@ -113,5 +149,11 @@ fun MainScreen(viewModel: SusRadarViewModel) {
                 }
             }
         }
+    }
+
+    if (showDebugDialog) {
+        DebugLogDialog(
+            onDismiss = { showDebugDialog = false }
+        )
     }
 }

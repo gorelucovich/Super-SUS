@@ -73,6 +73,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.model.PlayerColor
 import com.example.model.PlayerInGame
+import com.example.util.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -119,6 +120,7 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
 
         _isServiceRunning.value = true
+        AppLogger.i("OverlayService", "Запуск OverlayRadarService в foreground-режиме")
         startForegroundServiceWithNotification()
         initOverlayWindow()
     }
@@ -190,11 +192,17 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
             }
         }
 
-        windowManager?.addView(overlayComposeView, params)
+        try {
+            windowManager?.addView(overlayComposeView, params)
+            AppLogger.i("OverlayService", "Оверлей-окно успешно добавлено поверх других приложений")
+        } catch (e: Exception) {
+            AppLogger.e("OverlayService", "Ошибка добавления оверлей-окна (возможно нет разрешения)", e)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        AppLogger.i("OverlayService", "OverlayRadarService завершен")
         _isServiceRunning.value = false
         overlayComposeView?.let {
             windowManager?.removeView(it)
