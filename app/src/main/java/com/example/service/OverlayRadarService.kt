@@ -495,6 +495,41 @@ fun TacticalOverlayWidgetContent(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
+                // 1-Tap Quick Chat Presets from real matches
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val presets = listOf(
+                        "Белый: Я Пчела 🐝" to "Белый пчела",
+                        "Синий: Я в электричке" to "Синий электричка алиби",
+                        "Красный: Кик Белого 🚨" to "Красный голосуйте за белый",
+                        "Коричневый: В складе 📦" to "Коричневый склад",
+                        "Серебряный: Репорт 📣" to "Серебряный репорт",
+                        "Жёлтый: Пророк 👁️" to "Желтый пророк",
+                        "Голубой: В медотсеке 🏥" to "Голубой медотсек"
+                    )
+                    items(presets) { (label, phrase) ->
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF1E293B),
+                            modifier = Modifier.clickable {
+                                OverlayRadarService.parseQuickMessage(phrase)
+                            }
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFCBD5E1),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 Text(
                     text = "Игроки собрания (нажмите для заметок / роли):",
                     fontSize = 10.sp,
