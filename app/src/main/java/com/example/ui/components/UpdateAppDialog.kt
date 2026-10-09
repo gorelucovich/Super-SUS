@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,7 +54,7 @@ sealed class UpdateUiState {
     data class Found(val result: UpdateCheckResult) : UpdateUiState()
     data class Downloading(val progress: Int) : UpdateUiState()
     data class Completed(val message: String) : UpdateUiState()
-    data class Error(val error: String) : UpdateUiState()
+    data class Error(val error: String, val lastUrl: String = "") : UpdateUiState()
 }
 
 @Composable
@@ -63,7 +65,6 @@ fun UpdateAppDialog(
     val coroutineScope = rememberCoroutineScope()
     var uiState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Checking) }
     var customApkUrl by remember { mutableStateOf("") }
-    var showCustomUrlField by remember { mutableStateOf(false) }
 
     fun checkUpdate() {
         uiState = UpdateUiState.Checking
@@ -134,41 +135,60 @@ fun UpdateAppDialog(
                             color = Color(0xFF818CF8)
                         )
 
-                        if (res.isFallback) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFFEF3C7),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
-                                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Репозиторий GitHub пока приватный или пустой, поэтому используется официальный CDN с последней версией.",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF92400E)
-                                    )
-                                }
-                            }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = res.apkUrl,
+                                fontSize = 10.sp,
+                                maxLines = 2,
+                                modifier = Modifier.padding(8.dp),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Нажмите кнопку ниже для скачивания и авто-установки обновления:",
+                            text = "Выберите удобный способ скачивания:",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        if (showCustomUrlField) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = customApkUrl,
-                                onValueChange = { customApkUrl = it },
-                                label = { Text("Своя ссылка на .apk") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Secondary actions
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    AppUpdater.openInBrowser(context, res.apkUrl)
+                                    onDismiss()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Браузер", fontSize = 11.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    AppUpdater.downloadViaSystemManager(context, res.apkUrl)
+                                    uiState = UpdateUiState.Completed("Загрузка через систему начата в шторке!")
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Шторка", fontSize = 11.sp)
+                            }
                         }
                     }
 
@@ -189,7 +209,7 @@ fun UpdateAppDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "По завершении откроется установщик пакета...",
+                            text = "Поддерживается докачка при медленном интернете. По завершении откроется установщик.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -208,9 +228,26 @@ fun UpdateAppDialog(
                             Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("Не удалось обновиться", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                                Text("Ошибка загрузки", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(state.error, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "${state.error}. Мобильный оператор может ограничивать скорость. Попробуйте открыть ссылку через браузер:",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                if (state.lastUrl.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            AppUpdater.openInBrowser(context, state.lastUrl)
+                                            onDismiss()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5))
+                                    ) {
+                                        Text("Скачать через браузер", fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -236,14 +273,14 @@ fun UpdateAppDialog(
                                     uiState = UpdateUiState.Completed("Установщик запущен!")
                                 } catch (e: Exception) {
                                     AppLogger.e("UpdateDialog", "Ошибка загрузки APK", e)
-                                    uiState = UpdateUiState.Error(e.message ?: "Ошибка скачивания")
+                                    uiState = UpdateUiState.Error(e.message ?: "Ошибка скачивания", lastUrl = finalUrl)
                                 }
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
                         modifier = Modifier.testTag("download_update_btn")
                     ) {
-                        Text("Скачать и обновить")
+                        Text("Авто-установка")
                     }
                 }
 
