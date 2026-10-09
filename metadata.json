@@ -1,0 +1,6 @@
+{
+  "name": "SusRadar",
+  "description": "AI радар и детектив ролей для Super Sus: оверлей поверх игры, распознавание голоса и экрана, самообучение.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
