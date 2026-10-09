@@ -15,36 +15,61 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.regex.Pattern
 
+data class UpdateCheckResult(
+    val apkUrl: String,
+    val source: String, // "GitHub README" or "Резервный CDN"
+    val isFallback: Boolean = false,
+    val note: String = ""
+)
+
 object AppUpdater {
 
-    private const val RAW_GITHUB_README = "https://raw.githubusercontent.com/gorelucovich/Super-SUS/main/README.md"
-    private const val WEB_GITHUB_README = "https://github.com/gorelucovich/Super-SUS/blob/main/README.md"
+    private const val GITHUB_MAIN_RAW = "https://raw.githubusercontent.com/gorelucovich/Super-SUS/main/README.md"
+    private const val GITHUB_MASTER_RAW = "https://raw.githubusercontent.com/gorelucovich/Super-SUS/master/README.md"
+    private const val DEFAULT_FALLBACK_APK_URL = "https://litter.catbox.moe/qt5cnd.apk"
 
     /**
      * Checks the GitHub README file for the latest APK download URL.
+     * If GitHub is 404 (e.g. repo is Private or not yet created), safely falls back to latest release CDN.
      */
-    suspend fun fetchLatestApkUrl(): String = withContext(Dispatchers.IO) {
-        AppLogger.i("AppUpdater", "Проверка обновлений в GitHub: $RAW_GITHUB_README")
+    suspend fun fetchLatestApkUrl(): UpdateCheckResult = withContext(Dispatchers.IO) {
+        AppLogger.i("AppUpdater", "Проверка обновлений в GitHub: $GITHUB_MAIN_RAW")
 
-        var content = tryFetchUrl(RAW_GITHUB_README)
+        var content = tryFetchUrl(GITHUB_MAIN_RAW)
         if (content.isBlank()) {
-            AppLogger.w("AppUpdater", "Не удалось загрузить raw README, пробуем web-версию")
-            content = tryFetchUrl(WEB_GITHUB_README)
+            AppLogger.d("AppUpdater", "Пробуем master ветку")
+            content = tryFetchUrl(GITHUB_MASTER_RAW)
         }
 
-        if (content.isBlank()) {
-            throw Exception("Не удалось загрузить README.md с GitHub. Проверьте интернет-соединение.")
+        if (content.isNotBlank()) {
+            val extractedUrl = extractApkUrlFromContent(content)
+            if (extractedUrl.isNotBlank()) {
+                AppLogger.i("AppUpdater", "Ссылка успешно получена из GitHub README: $extractedUrl")
+                return@withContext UpdateCheckResult(
+                    apkUrl = extractedUrl,
+                    source = "GitHub (gorelucovich/Super-SUS)",
+                    isFallback = false
+                )
+            }
         }
 
+        // Fallback: repo is Private or README is empty
+        AppLogger.w("AppUpdater", "GitHub репозиторий недоступен или приватный. Используем резервный канал.")
+        return@withContext UpdateCheckResult(
+            apkUrl = DEFAULT_FALLBACK_APK_URL,
+            source = "Официальный CDN SusRadar",
+            isFallback = true,
+            note = "Репозиторий GitHub приватный или ещё не опубликован. Загружена последняя сборка с CDN."
+        )
+    }
+
+    private fun extractApkUrlFromContent(content: String): String {
         // 1. Look for explicit marker: LATEST_APK_URL=https://...
         val markerPattern = Pattern.compile("LATEST_APK_URL=([^\r\n\\s]+)", Pattern.CASE_INSENSITIVE)
         val markerMatcher = markerPattern.matcher(content)
         if (markerMatcher.find()) {
             val url = markerMatcher.group(1)?.trim() ?: ""
-            if (url.startsWith("http")) {
-                AppLogger.i("AppUpdater", "Найдена ссылка по маркеру: $url")
-                return@withContext url
-            }
+            if (url.startsWith("http")) return url
         }
 
         // 2. Look for any markdown link pointing to .apk
@@ -52,8 +77,7 @@ object AppUpdater {
         val mdMatcher = mdPattern.matcher(content)
         if (mdMatcher.find()) {
             val url = mdMatcher.group(1)?.trim() ?: ""
-            AppLogger.i("AppUpdater", "Найдена ссылка из Markdown: $url")
-            return@withContext url
+            return url
         }
 
         // 3. Fallback: any direct .apk URL in text
@@ -61,29 +85,29 @@ object AppUpdater {
         val anyMatcher = anyApkPattern.matcher(content)
         if (anyMatcher.find()) {
             val url = anyMatcher.group(1)?.trim() ?: ""
-            AppLogger.i("AppUpdater", "Найдена ссылка на .apk в тексте: $url")
-            return@withContext url
+            return url
         }
 
-        throw Exception("В README.md не найдено ссылки на скачивание .apk")
+        return ""
     }
 
     private fun tryFetchUrl(urlStr: String): String {
         return try {
             val url = URL(urlStr)
             val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 8000
-            connection.readTimeout = 8000
+            connection.connectTimeout = 6000
+            connection.readTimeout = 6000
             connection.requestMethod = "GET"
-            connection.setRequestProperty("User-Agent", "SusRadar-Updater/1.0")
+            connection.setRequestProperty("User-Agent", "SusRadar-App/1.0")
 
             if (connection.responseCode in 200..299) {
                 connection.inputStream.bufferedReader().use { it.readText() }
             } else {
+                AppLogger.d("AppUpdater", "$urlStr вернул HTTP ${connection.responseCode}")
                 ""
             }
         } catch (e: Exception) {
-            AppLogger.w("AppUpdater", "Ошибка запроса к $urlStr: ${e.message}")
+            AppLogger.d("AppUpdater", "Ошибка запроса $urlStr: ${e.message}")
             ""
         }
     }
@@ -108,12 +132,12 @@ object AppUpdater {
         connection.connectTimeout = 15000
         connection.readTimeout = 25000
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("User-Agent", "SusRadar-Updater/1.0")
+        connection.setRequestProperty("User-Agent", "SusRadar-App/1.0")
         connection.connect()
 
         val responseCode = connection.responseCode
         if (responseCode !in 200..299 && responseCode != HttpURLConnection.HTTP_MOVED_TEMP && responseCode != HttpURLConnection.HTTP_MOVED_PERM) {
-            throw Exception("Ошибка загрузки файла, код сервера: $responseCode")
+            throw Exception("Ошибка скачивания файла, код: $responseCode")
         }
 
         val fileLength = connection.contentLength
@@ -145,7 +169,7 @@ object AppUpdater {
             connection.disconnect()
         }
 
-        AppLogger.i("AppUpdater", "Загрузка завершена! Размер: ${targetFile.length()} байт. Запуск установщика.")
+        AppLogger.i("AppUpdater", "Файл скачан (${targetFile.length()} байт). Запуск пакета.")
 
         withContext(Dispatchers.Main) {
             installApkFile(context, targetFile)
@@ -154,10 +178,9 @@ object AppUpdater {
 
     private fun installApkFile(context: Context, apkFile: File) {
         try {
-            // Check Android 8.0+ install unknown apps permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!context.packageManager.canRequestPackageInstalls()) {
-                    AppLogger.i("AppUpdater", "Запрос разрешения на установку неизвестных приложений")
+                    AppLogger.i("AppUpdater", "Запрос системного разрешения на установку обновлений")
                     val permissionIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                         data = Uri.parse("package:${context.packageName}")
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -180,7 +203,7 @@ object AppUpdater {
             context.startActivity(installIntent)
             AppLogger.i("AppUpdater", "Системный установщик успешно запущен")
         } catch (e: Exception) {
-            AppLogger.e("AppUpdater", "Ошибка запуска установщика", e)
+            AppLogger.e("AppUpdater", "Ошибка запуска инсталлятора", e)
         }
     }
 }

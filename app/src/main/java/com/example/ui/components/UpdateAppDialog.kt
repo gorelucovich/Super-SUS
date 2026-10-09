@@ -14,7 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -23,12 +23,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,11 +44,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.util.AppLogger
 import com.example.util.AppUpdater
+import com.example.util.UpdateCheckResult
 import kotlinx.coroutines.launch
 
 sealed class UpdateUiState {
     object Checking : UpdateUiState()
-    data class Found(val apkUrl: String) : UpdateUiState()
+    data class Found(val result: UpdateCheckResult) : UpdateUiState()
     data class Downloading(val progress: Int) : UpdateUiState()
     data class Completed(val message: String) : UpdateUiState()
     data class Error(val error: String) : UpdateUiState()
@@ -61,13 +62,15 @@ fun UpdateAppDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var uiState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Checking) }
+    var customApkUrl by remember { mutableStateOf("") }
+    var showCustomUrlField by remember { mutableStateOf(false) }
 
     fun checkUpdate() {
         uiState = UpdateUiState.Checking
         coroutineScope.launch {
             try {
-                val apkUrl = AppUpdater.fetchLatestApkUrl()
-                uiState = UpdateUiState.Found(apkUrl)
+                val result = AppUpdater.fetchLatestApkUrl()
+                uiState = UpdateUiState.Found(result)
             } catch (e: Exception) {
                 AppLogger.e("UpdateDialog", "Ошибка проверки обновления", e)
                 uiState = UpdateUiState.Error(e.message ?: "Ошибка проверки обновления")
@@ -111,30 +114,60 @@ fun UpdateAppDialog(
                     }
 
                     is UpdateUiState.Found -> {
+                        val res = state.result
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Найдена актуальная версия!",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Найдено обновление на GitHub!",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981)
+                            text = "Источник: ${res.source}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF818CF8)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+
+                        if (res.isFallback) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFEF3C7),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
+                                    Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Репозиторий GitHub пока приватный или пустой, поэтому используется официальный CDN с последней версией.",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF92400E)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Файл обновления доступен для загрузки. Нажмите кнопку ниже для скачивания и автоматической установки:",
+                            text = "Нажмите кнопку ниже для скачивания и авто-установки обновления:",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = state.apkUrl,
-                                fontSize = 10.sp,
-                                maxLines = 2,
-                                modifier = Modifier.padding(8.dp),
-                                color = MaterialTheme.colorScheme.onSurface
+
+                        if (showCustomUrlField) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = customApkUrl,
+                                onValueChange = { customApkUrl = it },
+                                label = { Text("Своя ссылка на .apk") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
@@ -156,7 +189,7 @@ fun UpdateAppDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "По завершении загрузки откроется установщик пакета...",
+                            text = "По завершении откроется установщик пакета...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -187,6 +220,7 @@ fun UpdateAppDialog(
         confirmButton = {
             when (val state = uiState) {
                 is UpdateUiState.Found -> {
+                    val finalUrl = if (customApkUrl.isNotBlank()) customApkUrl else state.result.apkUrl
                     Button(
                         onClick = {
                             coroutineScope.launch {
@@ -194,7 +228,7 @@ fun UpdateAppDialog(
                                 try {
                                     AppUpdater.downloadAndInstallApk(
                                         context = context,
-                                        apkUrl = state.apkUrl,
+                                        apkUrl = finalUrl,
                                         onProgress = { progress ->
                                             uiState = UpdateUiState.Downloading(progress)
                                         }
