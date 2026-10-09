@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
@@ -39,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.DebugLogDialog
+import com.example.ui.components.UpdateAppDialog
 import com.example.ui.screens.LearningCenterScreen
 import com.example.ui.screens.LiveMatchScreen
 import com.example.ui.screens.OverlayControlScreen
@@ -61,6 +63,7 @@ enum class SusDestination(
 fun MainScreen(viewModel: SusRadarViewModel) {
     var currentDestination by remember { mutableStateOf(SusDestination.RADAR) }
     var showDebugDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     BackHandler(enabled = currentDestination != SusDestination.RADAR) {
         currentDestination = SusDestination.RADAR
@@ -79,6 +82,16 @@ fun MainScreen(viewModel: SusRadarViewModel) {
                     )
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showUpdateDialog = true },
+                        modifier = Modifier.testTag("top_bar_update_button")
+                    ) {
+                        Icon(
+                            Icons.Default.CloudDownload,
+                            contentDescription = "Обновить приложение",
+                            tint = Color(0xFF6366F1)
+                        )
+                    }
                     IconButton(
                         onClick = { showDebugDialog = true },
                         modifier = Modifier.testTag("top_bar_debug_button")
@@ -154,6 +167,12 @@ fun MainScreen(viewModel: SusRadarViewModel) {
     if (showDebugDialog) {
         DebugLogDialog(
             onDismiss = { showDebugDialog = false }
+        )
+    }
+
+    if (showUpdateDialog) {
+        UpdateAppDialog(
+            onDismiss = { showUpdateDialog = false }
         )
     }
 }

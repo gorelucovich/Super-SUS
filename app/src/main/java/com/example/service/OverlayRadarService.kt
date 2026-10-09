@@ -6,14 +6,12 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
 import android.view.WindowManager
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,9 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -71,7 +67,6 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.example.model.PlayerColor
 import com.example.model.PlayerInGame
 import com.example.util.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,15 +109,29 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
 
     override fun onCreate() {
         super.onCreate()
-        savedStateRegistryController.performRestore(null)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        try {
+            savedStateRegistryController.performRestore(null)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        } catch (e: Exception) {
+            AppLogger.e("OverlayService", "Lifecycle init warning", e)
+        }
 
         _isServiceRunning.value = true
         AppLogger.i("OverlayService", "Запуск OverlayRadarService в foreground-режиме")
-        startForegroundServiceWithNotification()
-        initOverlayWindow()
+
+        try {
+            startForegroundServiceWithNotification()
+        } catch (e: Exception) {
+            AppLogger.e("OverlayService", "Ошибка startForegroundServiceWithNotification", e)
+        }
+
+        try {
+            initOverlayWindow()
+        } catch (e: Exception) {
+            AppLogger.e("OverlayService", "Ошибка initOverlayWindow", e)
+        }
     }
 
     private fun startForegroundServiceWithNotification() {
@@ -143,9 +152,23 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
             .setContentText("Радар работает поверх игры Super Sus")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        startForeground(101, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                startForeground(
+                    101,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } catch (e: Exception) {
+                AppLogger.w("OverlayService", "Fallback startForeground without type: ${e.message}")
+                startForeground(101, notification)
+            }
+        } else {
+            startForeground(101, notification)
+        }
     }
 
     private fun initOverlayWindow() {
@@ -179,11 +202,13 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
             setContent {
                 OverlayWidgetContent(
                     onDragDelta = { dx, dy ->
-                        params?.let { p ->
-                            p.x += dx.toInt()
-                            p.y += dy.toInt()
-                            windowManager?.updateViewLayout(this@apply, p)
-                        }
+                        try {
+                            params?.let { p ->
+                                p.x += dx.toInt()
+                                p.y += dy.toInt()
+                                windowManager?.updateViewLayout(this@apply, p)
+                            }
+                        } catch (_: Exception) {}
                     },
                     onCloseService = {
                         stopSelf()
@@ -196,7 +221,7 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
             windowManager?.addView(overlayComposeView, params)
             AppLogger.i("OverlayService", "Оверлей-окно успешно добавлено поверх других приложений")
         } catch (e: Exception) {
-            AppLogger.e("OverlayService", "Ошибка добавления оверлей-окна (возможно нет разрешения)", e)
+            AppLogger.e("OverlayService", "Ошибка добавления оверлей-окна в WindowManager", e)
         }
     }
 
@@ -204,12 +229,18 @@ class OverlayRadarService : Service(), LifecycleOwner, ViewModelStoreOwner, Save
         super.onDestroy()
         AppLogger.i("OverlayService", "OverlayRadarService завершен")
         _isServiceRunning.value = false
-        overlayComposeView?.let {
-            windowManager?.removeView(it)
+        try {
+            overlayComposeView?.let {
+                windowManager?.removeView(it)
+            }
+        } catch (e: Exception) {
+            AppLogger.w("OverlayService", "Ошибка удаления оверлей-окна: ${e.message}")
         }
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        try {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        } catch (_: Exception) {}
     }
 }
 

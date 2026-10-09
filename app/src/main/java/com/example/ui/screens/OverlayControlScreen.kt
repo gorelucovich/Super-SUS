@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.service.OverlayRadarService
+import com.example.util.AppLogger
 import com.example.viewmodel.SusRadarViewModel
 
 @Composable
@@ -221,24 +222,28 @@ fun OverlayControlScreen(
 
                     Button(
                         onClick = {
-                            if (isOverlayActive) {
-                                val intent = Intent(context, OverlayRadarService::class.java)
-                                context.stopService(intent)
-                            } else {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    context.startActivity(intent)
-                                } else {
+                            try {
+                                if (isOverlayActive) {
                                     val intent = Intent(context, OverlayRadarService::class.java)
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        context.startForegroundService(intent)
+                                    context.stopService(intent)
+                                } else {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        context.startActivity(intent)
                                     } else {
-                                        context.startService(intent)
+                                        val intent = Intent(context, OverlayRadarService::class.java)
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                            context.startForegroundService(intent)
+                                        } else {
+                                            context.startService(intent)
+                                        }
                                     }
                                 }
+                            } catch (e: Exception) {
+                                AppLogger.e("OverlayControl", "Ошибка запуска сервиса: ${e.message}", e)
                             }
                         },
                         modifier = Modifier
