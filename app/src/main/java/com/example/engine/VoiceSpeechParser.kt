@@ -12,20 +12,18 @@ data class ParsedSpeechResult(
 
 object VoiceSpeechParser {
 
-    private val colorMap = mapOf(
+    private val colorMap = listOf(
+        "гранатов" to PlayerColor.GARNET_RED, // must check before "красн"
         "красн" to PlayerColor.RED,
+        "голуб" to PlayerColor.CYAN,
         "син" to PlayerColor.BLUE,
-        "зелен" to PlayerColor.GREEN,
-        "зелён" to PlayerColor.GREEN,
         "желт" to PlayerColor.YELLOW,
         "жёлт" to PlayerColor.YELLOW,
-        "оранж" to PlayerColor.ORANGE,
-        "фиолет" to PlayerColor.PURPLE,
-        "голуб" to PlayerColor.CYAN,
+        "серебр" to PlayerColor.SILVER,
         "бел" to PlayerColor.WHITE,
-        "черн" to PlayerColor.BLACK,
-        "чёрн" to PlayerColor.BLACK,
-        "розов" to PlayerColor.PINK
+        "фиолет" to PlayerColor.PURPLE,
+        "розов" to PlayerColor.PINK,
+        "коричн" to PlayerColor.BROWN
     )
 
     fun parse(text: String): ParsedSpeechResult {
@@ -40,48 +38,62 @@ object VoiceSpeechParser {
             }
         }
 
-        // 2. Identify action / suspicion
+        // 2. Identify exact game phrase from Super Sus
         var detectedEvent: EventType? = null
         var summary = ""
 
         when {
-            lower.contains("люк") || lower.contains("вент") || lower.contains("вентиляц") || lower.contains("прыгн") -> {
-                detectedEvent = EventType.VENTED
-                summary = "Замечен в люке / вентиляции"
+            // Direct Super Sus accusation phrases
+            lower.contains("предатель") || lower.contains("импостор") || lower.contains("голосуйте за") || lower.contains("кик") -> {
+                detectedEvent = EventType.ACCUSED_OTHERS
+                summary = "Прямое обвинение в Предательстве"
             }
-            lower.contains("визуал") || lower.contains("скан") || lower.contains("медпункт") ||
-            lower.contains("щит") || lower.contains("мусор") || lower.contains("чист") || lower.contains("100%") -> {
+            // Verified / clear
+            lower.contains("проверили") || lower.contains("визуал") || lower.contains("скан") ||
+            lower.contains("чист") || lower.contains("проверен") || lower.contains("100%") -> {
                 detectedEvent = EventType.VISUAL_TASK
-                summary = "Подтверждён визуальным заданием (Чистый)"
+                summary = "Проверен / подтверждён мирный"
             }
+            // Joker provocation
             lower.contains("кикайте меня") || lower.contains("голосуйте за меня") ||
-            lower.contains("сливайте меня") || lower.contains("я джокер") || lower.contains("выгоняйте") -> {
+            lower.contains("сливайте меня") || lower.contains("я джокер") -> {
                 detectedEvent = EventType.PROVOKED_VOTE
                 summary = "Провоцирует голосование (Вероятный Джокер!)"
             }
-            lower.contains("убил") || lower.contains("труп") || lower.contains("зарезал") || lower.contains("выстрел") -> {
-                detectedEvent = EventType.SHOT_PLAYER
-                summary = "Связан с устранением / выстрелом"
+            // Ghoul / monster eating
+            lower.contains("гуль") || lower.contains("сожрал") || lower.contains("съел") -> {
+                detectedEvent = EventType.KILLED_PLAYER
+                summary = "Поедание тел / нападение (Роль: Гуль)"
             }
-            lower.contains("ожил") || lower.contains("поднял") || lower.contains("доктор") || lower.contains("воскрес") -> {
+            // Code gadget caveat
+            lower.contains("код") || lower.contains("фейк скан") -> {
+                detectedEvent = EventType.SUSPICIOUS_MOVEMENT
+                summary = "Упоминание приспособления Код (фейк-визуал)"
+            }
+            // Vent
+            lower.contains("люк") || lower.contains("вент") || lower.contains("прыгн") -> {
+                detectedEvent = EventType.VENTED
+                summary = "Замечен в вентиляции / люке"
+            }
+            // Body report query
+            lower.contains("где ты нашёл") || lower.contains("где ты нашел") || lower.contains("где тело") || lower.contains("репорт") -> {
+                detectedEvent = EventType.REPORTED_BODY
+                summary = "Вопрос / отчёт о месте нахождения тела"
+            }
+            // Alibi location
+            lower.contains("я был") || lower.contains("я была") || lower.contains("медотсек") ||
+            lower.contains("электрическ") || lower.contains("кафетерий") || lower.contains("навигаци") -> {
+                detectedEvent = EventType.CONFIRMED_ALIBI
+                summary = "Заявление об алиби и локации"
+            }
+            // Revive / Doctor
+            lower.contains("ожил") || lower.contains("поднял") || lower.contains("доктор") -> {
                 detectedEvent = EventType.REVIVED_PLAYER
                 summary = "Реанимация погибшего (Роль: Доктор)"
             }
-            lower.contains("алиби") || lower.contains("вместе") || lower.contains("ходили вдвоем") -> {
-                detectedEvent = EventType.CONFIRMED_ALIBI
-                summary = "Подтверждённое алиби напарника"
-            }
-            lower.contains("фейк") || lower.contains("следит") || lower.contains("крутится") || lower.contains("преследует") -> {
-                detectedEvent = EventType.SUSPICIOUS_MOVEMENT
-                summary = "Подозрительное поведение / фейк-таск"
-            }
-            lower.contains("репорт") || lower.contains("нашел") || lower.contains("кнопк") -> {
-                detectedEvent = EventType.REPORTED_BODY
-                summary = "Сообщил о происшествии / собрание"
-            }
             else -> {
-                detectedEvent = EventType.VOICE_CONFESSION
-                summary = "Реплика в голосовом чате"
+                detectedEvent = EventType.CHAT_MESSAGE
+                summary = "Реплика собрания: '$text'"
             }
         }
 

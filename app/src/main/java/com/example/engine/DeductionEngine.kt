@@ -16,31 +16,37 @@ object DeductionEngine {
             return player
         }
 
-        // Default weights if not loaded
+        // Bayesian learned weights
         val ventImpostorWeight = weights["VENT_IS_IMPOSTOR"] ?: 0.78f
-        val ventEngineerWeight = weights["VENT_IS_ENGINEER"] ?: 0.15f
+        val ventEngineerWeight = weights["VENT_IS_ENGINEER"] ?: 0.18f
         val provokeJokerWeight = weights["PROVOKE_IS_JOKER"] ?: 0.88f
-        val visualClearWeight = weights["VISUAL_IS_CLEAR"] ?: 0.99f
+        // Note: Visual task weight adjusted because of gadget "Код", which allows Impostors to fake visual tasks
+        val visualClearWeight = weights["VISUAL_IS_CLEAR"] ?: 0.88f
         val aggressiveWeight = weights["AGGRESSIVE_IS_IMPOSTOR"] ?: 0.65f
 
         var impostorScore = 15f
         var jokerScore = 8f
         var spacecrewScore = 77f
-        var isClear = player.isClear
+        var hasVisualProof = false
         var isFlaggedJoker = false
 
         for (event in player.events) {
             when (event.type) {
                 EventType.VISUAL_TASK -> {
-                    isClear = true
+                    hasVisualProof = true
                     spacecrewScore = visualClearWeight * 100f
-                    impostorScore = (1f - visualClearWeight) * 100f
-                    jokerScore = 0f
+                    // Не 0%, так как с приспособлением "Код" предатель/нейтрал может сделать визуал!
+                    impostorScore = ((1f - visualClearWeight) * 100f).coerceAtLeast(10f)
+                    jokerScore = 5f
                 }
                 EventType.VENTED -> {
-                    if (!isClear) {
+                    // Люк: может быть Инженер или Подрыватель (экипаж), либо Предатель/Поджигатель
+                    if (!hasVisualProof) {
                         impostorScore = maxOf(impostorScore, ventImpostorWeight * 100f)
                         spacecrewScore = ventEngineerWeight * 100f
+                    } else {
+                        // Был визуал, но полез в люк -> Инженер или Подрыватель, либо предатель с "Кодом"
+                        impostorScore = maxOf(impostorScore, 35f)
                     }
                 }
                 EventType.PROVOKED_VOTE -> {
@@ -48,29 +54,24 @@ object DeductionEngine {
                     isFlaggedJoker = true
                 }
                 EventType.REVIVED_PLAYER -> {
-                    // Clearly Doctor (Spacecrew)
-                    isClear = true
-                    spacecrewScore = 96f
-                    impostorScore = 3f
-                    jokerScore = 1f
+                    // Точно Доктор (Космонавт)
+                    spacecrewScore = 98f
+                    impostorScore = 2f
+                    jokerScore = 0f
                 }
                 EventType.SHOT_PLAYER -> {
-                    // Sheriff or killer
-                    impostorScore = maxOf(impostorScore, 50f)
+                    // Шериф или убийца
+                    impostorScore = maxOf(impostorScore, 45f)
                 }
                 EventType.ACCUSED_OTHERS -> {
-                    if (!isClear) {
-                        impostorScore += (aggressiveWeight * 20f)
-                    }
+                    impostorScore += (aggressiveWeight * 16f)
                 }
                 EventType.SUSPICIOUS_MOVEMENT -> {
-                    if (!isClear) {
-                        impostorScore += 25f
-                    }
+                    impostorScore += 20f
                 }
                 EventType.CONFIRMED_ALIBI -> {
-                    impostorScore = maxOf(5f, impostorScore - 30f)
-                    spacecrewScore = minOf(95f, spacecrewScore + 25f)
+                    impostorScore = maxOf(5f, impostorScore - 20f)
+                    spacecrewScore = minOf(95f, spacecrewScore + 18f)
                 }
                 else -> {}
             }
@@ -81,26 +82,28 @@ object DeductionEngine {
         val jokClamped = jokerScore.toInt().coerceIn(0, 99)
         val spaceClamped = spacecrewScore.toInt().coerceIn(1, 99)
 
-        // Faction & Role deduction
+        // Faction deduction
         val mostLikelyFaction = when {
             isFlaggedJoker || jokClamped >= 70 -> Faction.NEUTRAL
             impClamped >= 60 -> Faction.IMPOSTOR
-            spaceClamped >= 70 || isClear -> Faction.SPACECREW
+            spaceClamped >= 70 || hasVisualProof -> Faction.SPACECREW
             else -> Faction.UNKNOWN
         }
 
+        // Predicted Role matching Super Sus
         val predictedRole = when {
             isFlaggedJoker || jokClamped >= 70 -> "Джокер"
             player.events.any { it.type == EventType.REVIVED_PLAYER } -> "Доктор"
-            isClear -> "Космонавт (Чистый)"
-            impClamped >= 80 && player.events.any { it.type == EventType.VENTED } -> "Хамелеон / Импостор"
-            player.events.any { it.type == EventType.VENTED } && impClamped < 60 -> "Инженер"
+            hasVisualProof && impClamped < 30 -> "Космонавт (Визуал/Код)"
+            hasVisualProof && impClamped >= 30 -> "Подозрение (Возможен Код!)"
+            player.events.any { it.type == EventType.VENTED } && impClamped < 50 -> "Инженер / Подрыватель"
+            impClamped >= 80 -> "Шпион / Предатель"
             impClamped >= 60 -> "Предатель"
             else -> "Космонавт"
         }
 
         return player.copy(
-            isClear = isClear,
+            isClear = hasVisualProof && impClamped < 30,
             impostorProbability = impClamped,
             jokerProbability = jokClamped,
             spacecrewProbability = spaceClamped,
@@ -111,8 +114,7 @@ object DeductionEngine {
     }
 
     /**
-     * Self-learning calibration: compares predictions with ground truth roles,
-     * computes accuracy and adjusts Bayesian weights.
+     * Self-learning calibration
      */
     fun computeCalibrationWeights(
         players: List<PlayerInGame>,
@@ -137,10 +139,8 @@ object DeductionEngine {
             (correctPredictions * 100 / totalJudged).coerceIn(20, 100)
         } else 80
 
-        // Adaptive gradient updates to weights
         val updatedWeights = currentWeights.map { weight ->
             val samples = weight.samplesCount + 1
-            // Small learning rate nudging towards empirical feedback
             val learningRate = 1.0f / samples.coerceAtMost(30)
             val delta = if (accuracy >= 80) 0.02f else -0.02f
             val newWeight = (weight.weight + delta * learningRate).coerceIn(0.1f, 0.99f)

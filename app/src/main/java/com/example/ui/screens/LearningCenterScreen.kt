@@ -357,22 +357,22 @@ fun CalibrationDialog(
     onDismiss: () -> Unit,
     onCalibrate: (Map<PlayerColor, String>) -> Unit
 ) {
-    // Quick role pickers for each color
-    var redRole by remember { mutableStateOf("Хамелеон") }
-    var yellowRole by remember { mutableStateOf("Джокер") }
-    var blueRole by remember { mutableStateOf("Шериф") }
-    var greenRole by remember { mutableStateOf("Космонавт") }
+    var garnetRedRole by remember { mutableStateOf("Шпион") }
+    var cyanRole by remember { mutableStateOf("Подрыватель") }
+    var yellowRole by remember { mutableStateOf("Пророк") }
+    var redRole by remember { mutableStateOf("Шериф") }
+    var blueRole by remember { mutableStateOf("Доктор") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Калибровка реальных ролей", fontWeight = FontWeight.Bold)
+            Text("Калибровка ролей по итогам матча", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Укажите роли ключевых игроков матча для обновления вероятностей:",
-                    fontSize = 12.sp,
+                    text = "Отметьте подтверждённые роли из экрана победы Super Sus для обучения:",
+                    fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -381,8 +381,8 @@ fun CalibrationDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Красный был:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(redRole, fontSize = 13.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text("Гранатово-красный:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(garnetRedRole, fontSize = 12.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                 }
 
                 Row(
@@ -390,8 +390,8 @@ fun CalibrationDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Жёлтый был:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(yellowRole, fontSize = 13.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold)
+                    Text("Голубой:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(cyanRole, fontSize = 12.sp, color = Color(0xFF00BCD4), fontWeight = FontWeight.Bold)
                 }
 
                 Row(
@@ -399,8 +399,17 @@ fun CalibrationDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Синий был:", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(blueRole, fontSize = 13.sp, color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)
+                    Text("Жёлтый:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(yellowRole, fontSize = 12.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Красный:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(redRole, fontSize = 12.sp, color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -408,10 +417,11 @@ fun CalibrationDialog(
             Button(
                 onClick = {
                     val map = mapOf(
-                        PlayerColor.RED to redRole,
+                        PlayerColor.GARNET_RED to garnetRedRole,
+                        PlayerColor.CYAN to cyanRole,
                         PlayerColor.YELLOW to yellowRole,
-                        PlayerColor.BLUE to blueRole,
-                        PlayerColor.GREEN to greenRole
+                        PlayerColor.RED to redRole,
+                        PlayerColor.BLUE to blueRole
                     )
                     onCalibrate(map)
                 },

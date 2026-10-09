@@ -147,7 +147,7 @@ fun RoleDetailCard(role: SusRole) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = role.nameRu,
+                        text = "${role.iconBadge} ${role.nameRu}",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -173,6 +173,23 @@ fun RoleDetailCard(role: SusRole) {
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (role.winCondition.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "🏆 Цель победы: ${role.winCondition}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFBBF24),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
             Text(

@@ -219,10 +219,10 @@ class SusRadarViewModel(
     // Quick demo simulation of Super Sus match events
     fun simulateDemoEvent(step: Int) {
         when (step) {
-            1 -> onSpeechRecognized("Синий сделал сканирование в медпункте, он чистый")
-            2 -> onSpeechRecognized("Красный прыгнул в вентиляцию у реактора!")
-            3 -> onSpeechRecognized("Жёлтый кричит: давайте кикайте меня, я джокер!")
-            4 -> onSpeechRecognized("Зеленый и Белый вместе чинили свет")
+            1 -> onSpeechRecognized("Красный: Проверили, он чистый")
+            2 -> onSpeechRecognized("Гранатово-красный: Голубой – Предатель(ница)! Голосуйте за Голубой.")
+            3 -> onSpeechRecognized("Жёлтый: Голуба кик, сливайте его!")
+            4 -> onSpeechRecognized("Голубой говорит: Я был в Медотсек, у меня алиби")
         }
     }
 

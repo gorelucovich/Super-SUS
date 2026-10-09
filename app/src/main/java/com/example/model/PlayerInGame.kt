@@ -7,6 +7,7 @@ enum class EventType(val ruTitle: String, val icon: String) {
     EMERGENCY_BUTTON("Нажал экстренную кнопку", "🔴"),
     REVIVED_PLAYER("Оживил игрока (Доктор)", "💉"),
     SHOT_PLAYER("Выстрелил в игрока (Шериф/Килл)", "🔫"),
+    KILLED_PLAYER("Устранил игрока / Поедание (Гуль)", "💀"),
     ACCUSED_OTHERS("Агрессивно обвиняет", "👉"),
     PROVOKED_VOTE("Провоцирует голосовать против себя (Джокер?)", "🎭"),
     SUSPICIOUS_MOVEMENT("Фейк-таск / слежка", "👀"),
