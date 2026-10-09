@@ -150,7 +150,7 @@ class SusRadarViewModel(
                     }
                     override fun onPartialResults(partialResults: Bundle?) {
                         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        matches?.firstOrNull()?.let { spoken ->
+                        matches?.firstOrNull()?.let { spoken: String ->
                             _lastRecognizedText.value = spoken
                             OverlayRadarService.updateVoiceMessage(spoken)
                         }
