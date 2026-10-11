@@ -1,10 +1,17 @@
 # Super-SUS / SusRadar — AI Детектор ролей для Super Sus
 
-LATEST_VERSION=1.2.0
-LATEST_APK_URL=https://litter.catbox.moe/o7t8bh.apk
+LATEST_VERSION=1.3.0
+LATEST_APK_URL=https://litter.catbox.moe/9sqeo2.apk
 
-* 🚀 [Скачать актуальный SusRadar.apk (Прямая ссылка)](https://litter.catbox.moe/o7t8bh.apk)
-* 🪞 [Резервное зеркало (tmpfiles)](https://tmpfiles.org/dl/1791705665.32697013e9019932/wjAp6NyckAb4/app-debug.apk)
+* 🚀 [Скачать актуальный SusRadar v1.3.0 APK (Прямая ссылка)](https://litter.catbox.moe/9sqeo2.apk)
+
+---
+
+### Что нового в версии 1.3.0:
+* 🧠 **Переход на актуальную модель Gemini 3.8 Flash** (`gemini-3.8-flash` с автоматическим резервом на `gemini-3.5-flash`). Устранена ошибка HTTP 404 устаревшей модели `gemini-2.5-flash`.
+* 🔑 **Пользовательский ввод API-ключа прямо в приложении**: теперь ключ можно ввести или вставить в диалоговом окне (нажав на баннер «Gemini API») без пересборки APK.
+* ⚡ **Проверка ключа в реальном времени**: кнопка «Проверить ключ» мгновенно пингует Gemini API и отображает статус подключения.
+* 🎙️ **Улучшенный парсинг ответов ИИ**: фильтрация служебных блоков мыслей (thoughts) для бесперебойного тактического анализа и озвучивания.
 
 ---
 
@@ -12,6 +19,6 @@ LATEST_APK_URL=https://litter.catbox.moe/o7t8bh.apk
 1. В вашем репозитории `https://github.com/gorelucovich/Super-SUS` откройте **Settings** и убедитесь, что репозиторий установлен как **Public (Публичный)**.
 2. В файле `README.md` укажите актуальную ссылку:
 ```
-LATEST_APK_URL=https://litter.catbox.moe/o7t8bh.apk
+LATEST_APK_URL=https://litter.catbox.moe/9sqeo2.apk
 ```
 3. При нажатии кнопки **«Облачное обновление» (📥)** в приложении оно автоматически считывает эту ссылку и обновляет приложение!

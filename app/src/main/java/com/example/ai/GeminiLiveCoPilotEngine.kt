@@ -1,12 +1,12 @@
 package com.example.ai
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import com.example.BuildConfig
 import com.example.data.CoPilotKnowledgeEntity
 import com.example.data.PlayerProfileEntity
 import com.example.data.SusDao
-import com.example.model.PlayerColor
 import com.example.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,10 +44,16 @@ data class MeetingSpeechAnalysis(
 
 object GeminiLiveCoPilotEngine {
 
+    const val PRIMARY_MODEL = "gemini-3.8-flash"
+    const val FALLBACK_MODEL = "gemini-3.5-flash"
+
+    private const val PREFS_NAME = "sus_radar_gemini_prefs"
+    private const val KEY_CUSTOM_API_KEY = "custom_gemini_api_key"
+
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
     private val _isKeyConfigured = MutableStateFlow(false)
@@ -62,20 +68,95 @@ object GeminiLiveCoPilotEngine {
     private val _activeAdvice = MutableStateFlow("Запустите захват экрана и оверлей для подсказок в реальном времени")
     val activeAdvice = _activeAdvice.asStateFlow()
 
+    private var customApiKeyInMemory: String? = null
+
     init {
         checkApiKey()
     }
 
-    fun checkApiKey(): Boolean {
-        val key = getApiKey()
+    /**
+     * Инициализация с контекстом приложения: загружает пользовательский API-ключ из SharedPreferences.
+     */
+    fun init(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val savedKey = prefs.getString(KEY_CUSTOM_API_KEY, null)?.trim()
+            if (!savedKey.isNullOrBlank()) {
+                customApiKeyInMemory = savedKey
+                AppLogger.i("GeminiLive", "Загружен пользовательский Gemini API ключ из настроек")
+            }
+        } catch (e: Exception) {
+            AppLogger.w("GeminiLive", "Ошибка чтения SharedPreferences: ${e.message}")
+        }
+        checkApiKey(context)
+    }
+
+    /**
+     * Сохраняет пользовательский ключ API в памяти и SharedPreferences
+     */
+    fun saveCustomApiKey(context: Context, key: String) {
+        val trimmed = key.trim()
+        customApiKeyInMemory = trimmed.ifBlank { null }
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                if (trimmed.isNotBlank()) {
+                    putString(KEY_CUSTOM_API_KEY, trimmed)
+                } else {
+                    remove(KEY_CUSTOM_API_KEY)
+                }
+            }.apply()
+        } catch (e: Exception) {
+            AppLogger.w("GeminiLive", "Ошибка сохранения API ключа: ${e.message}")
+        }
+        checkApiKey(context)
+        AppLogger.i("GeminiLive", if (trimmed.isNotBlank()) "Пользовательский GEMINI_API_KEY успешно сохранён" else "Пользовательский ключ очищен")
+    }
+
+    /**
+     * Получить текущий пользовательский ключ (если был сохранён в приложении)
+     */
+    fun getSavedCustomApiKey(context: Context? = null): String {
+        if (!customApiKeyInMemory.isNullOrBlank()) return customApiKeyInMemory!!
+        if (context != null) {
+            try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val saved = prefs.getString(KEY_CUSTOM_API_KEY, null)?.trim() ?: ""
+                if (saved.isNotBlank()) {
+                    customApiKeyInMemory = saved
+                    return saved
+                }
+            } catch (_: Exception) {}
+        }
+        return ""
+    }
+
+    /**
+     * Проверяет, настроен ли валидный API-ключ (пользовательский или BuildConfig)
+     */
+    fun checkApiKey(context: Context? = null): Boolean {
+        val key = getEffectiveApiKey(context)
         val configured = key.isNotBlank() && !key.contains("MY_GEMINI_API_KEY", ignoreCase = true)
         _isKeyConfigured.value = configured
         return configured
     }
 
-    private fun getApiKey(): String {
+    /**
+     * Возвращает действующий API-ключ с приоритетом:
+     * 1. Пользовательский ключ, введённый в приложении
+     * 2. Ключ из BuildConfig.GEMINI_API_KEY (Secrets)
+     */
+    fun getEffectiveApiKey(context: Context? = null): String {
+        val custom = getSavedCustomApiKey(context)
+        if (custom.isNotBlank()) return custom
+
         return try {
-            BuildConfig.GEMINI_API_KEY
+            val buildKey = BuildConfig.GEMINI_API_KEY.trim()
+            if (buildKey.isNotBlank() && !buildKey.contains("MY_GEMINI_API_KEY", ignoreCase = true)) {
+                buildKey
+            } else {
+                ""
+            }
         } catch (_: Exception) {
             ""
         }
@@ -86,8 +167,8 @@ object GeminiLiveCoPilotEngine {
      * - 32 роли (17 Экипаж, 10 Предатели, 5 Нейтралы)
      * - 2 режима (Все роли, Рандомные роли)
      * - Прокачка ролей 1..20 (модуль выбора на 10 ур, уникальный модуль на 20 ур)
-     * - Визуальные задания (Щиты, Медпункт/Сканер, Сброс мусора)
-     * - Вентиляция (Инженер может прыгать легально, но с кулдауном; Предатели без кулдауна)
+     * - Визуальные задания (Щиты, Медпункт/Сканер, Сброс мусора, Оружие)
+     * - Вентиляция (Инженер может прыгать легально с кулдауном; Предатели без кулдауна)
      */
     private val SUPER_SUS_SYSTEM_PROMPT = """
         Ты — Gemini Live Co-Pilot, элитный тактический аналитик игры Super Sus в реальном времени.
@@ -112,17 +193,116 @@ object GeminiLiveCoPilotEngine {
     """.trimIndent()
 
     /**
+     * Выполняет запрос к Gemini API с автоматическим переходом на резервную модель в случае ошибки.
+     */
+    private fun executeGeminiRequest(apiKey: String, requestJson: JSONObject): Pair<Int, String> {
+        val models = listOf(PRIMARY_MODEL, FALLBACK_MODEL)
+        var lastCode = -1
+        var lastBody = ""
+
+        for (model in models) {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+            val request = Request.Builder()
+                .url(url)
+                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            try {
+                httpClient.newCall(request).execute().use { response ->
+                    lastCode = response.code
+                    lastBody = response.body?.string() ?: ""
+                    if (response.isSuccessful) {
+                        return Pair(lastCode, lastBody)
+                    } else {
+                        AppLogger.w("GeminiLive", "Модель $model вернула HTTP $lastCode: ${lastBody.take(200)}")
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.w("GeminiLive", "Сбой вызова модели $model: ${e.message}")
+                lastCode = -1
+                lastBody = e.message ?: "Сетевая ошибка"
+            }
+        }
+        return Pair(lastCode, lastBody)
+    }
+
+    /**
+     * Надёжно извлекает текст из структуры ответа Gemini,
+     * обходя служебные блоки размышлений (thoughts) и пустые части.
+     */
+    private fun extractTextFromResponse(responseBody: String): String {
+        return try {
+            val parsedJson = JSONObject(responseBody)
+            val candidates = parsedJson.optJSONArray("candidates") ?: return "{}"
+            val firstCandidate = candidates.optJSONObject(0) ?: return "{}"
+            val content = firstCandidate.optJSONObject("content") ?: return "{}"
+            val parts = content.optJSONArray("parts") ?: return "{}"
+
+            for (i in 0 until parts.length()) {
+                val partObj = parts.optJSONObject(i) ?: continue
+                val text = partObj.optString("text")
+                if (!text.isNullOrBlank()) {
+                    return text.trim().removeSurrounding("```json", "```").trim()
+                }
+            }
+            "{}"
+        } catch (e: Exception) {
+            AppLogger.e("GeminiLive", "Ошибка парсинга ответа Gemini: ${e.message}")
+            "{}"
+        }
+    }
+
+    /**
+     * Быстрый тест валидности ключа API
+     */
+    suspend fun testApiKey(apiKeyToTest: String): Result<String> = withContext(Dispatchers.IO) {
+        val cleanKey = apiKeyToTest.trim()
+        if (cleanKey.isBlank() || cleanKey.contains("MY_GEMINI_API_KEY", ignoreCase = true)) {
+            return@withContext Result.failure(IllegalArgumentException("Ключ пустой или является шаблоном"))
+        }
+
+        try {
+            val pingRequest = JSONObject().apply {
+                val contents = JSONArray().apply {
+                    put(JSONObject().apply {
+                        val parts = JSONArray().apply {
+                            put(JSONObject().apply { put("text", "Ответь одним словом: ГОТОВ") })
+                        }
+                        put("parts", parts)
+                    })
+                }
+                put("contents", contents)
+            }
+
+            val (code, body) = executeGeminiRequest(cleanKey, pingRequest)
+            if (code == 200) {
+                Result.success("Успешно! Модель $PRIMARY_MODEL отвечает в штатном режиме.")
+            } else {
+                val parsedError = try {
+                    val j = JSONObject(body)
+                    j.optJSONObject("error")?.optString("message") ?: body.take(150)
+                } catch (_: Exception) {
+                    body.take(150)
+                }
+                Result.failure(Exception("HTTP $code: $parsedError"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Анализирует ключевой кадр экрана Super Sus с помощью Gemini Multimodal Vision.
      */
     suspend fun analyzeGameFrame(
         bitmap: Bitmap,
         userCurrentContext: String = ""
     ): ScreenObservation = withContext(Dispatchers.IO) {
-        val apiKey = getApiKey()
+        val apiKey = getEffectiveApiKey()
         if (apiKey.isBlank() || apiKey.contains("MY_GEMINI_API_KEY", ignoreCase = true)) {
-            AppLogger.w("GeminiLive", "GEMINI_API_KEY не задан в Secrets!")
+            AppLogger.w("GeminiLive", "GEMINI_API_KEY не задан!")
             return@withContext ScreenObservation(
-                adviceShort = "Настройте GEMINI_API_KEY в панели Secrets для активации зрения ИИ"
+                adviceShort = "Введите GEMINI_API_KEY в настройках для активации зрения ИИ"
             )
         }
 
@@ -163,37 +343,20 @@ object GeminiLiveCoPilotEngine {
                 }
                 contentsArray.put(contentObj)
                 put("contents", contentsArray)
-                
-                // Set generation config for deterministic JSON
+
                 put("generationConfig", JSONObject().apply {
                     put("temperature", 0.2)
                     put("responseMimeType", "application/json")
                 })
             }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
-            val request = Request.Builder()
-                .url(url)
-                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-
-            if (!response.isSuccessful) {
-                AppLogger.e("GeminiLive", "Ошибка Gemini API: ${response.code} $responseBody")
-                return@withContext ScreenObservation(adviceShort = "Ошибка связи с Gemini (${response.code})")
+            val (code, responseBody) = executeGeminiRequest(apiKey, requestJson)
+            if (code != 200) {
+                AppLogger.e("GeminiLive", "Ошибка Gemini API ($code): ${responseBody.take(200)}")
+                return@withContext ScreenObservation(adviceShort = "Ошибка связи с Gemini ($code)")
             }
 
-            val parsedJson = JSONObject(responseBody)
-            val candidates = parsedJson.optJSONArray("candidates")
-            val textContent = candidates?.optJSONObject(0)
-                ?.optJSONObject("content")
-                ?.optJSONArray("parts")
-                ?.optJSONObject(0)
-                ?.optString("text") ?: "{}"
-
-            val cleanJson = textContent.trim().removeSurrounding("```json", "```").trim()
+            val cleanJson = extractTextFromResponse(responseBody)
             val resultObj = JSONObject(cleanJson)
 
             val role = resultObj.optString("myDetectedRole").takeIf { it.isNotBlank() && it != "null" }
@@ -219,6 +382,7 @@ object GeminiLiveCoPilotEngine {
 
             if (role != null) {
                 _myRoleInfo.value = if (level != null) "$role (Ур. $level)" else role
+                AppLogger.i("GeminiLive", "Определена роль: ${_myRoleInfo.value}")
             }
             if (advice.isNotBlank()) {
                 _activeAdvice.value = advice
@@ -249,11 +413,11 @@ object GeminiLiveCoPilotEngine {
         userSpokenText: String,
         dao: SusDao
     ): MeetingSpeechAnalysis = withContext(Dispatchers.IO) {
-        val apiKey = getApiKey()
+        val apiKey = getEffectiveApiKey()
         if (apiKey.isBlank() || apiKey.contains("MY_GEMINI_API_KEY", ignoreCase = true)) {
             return@withContext MeetingSpeechAnalysis(
                 speakerNickname = "Игрок",
-                adviceVoiceCallout = "Подключите ключ Gemini в Secrets для детектора лжи"
+                adviceVoiceCallout = "Подключите ключ Gemini в настройках для детектора лжи"
             )
         }
 
@@ -297,24 +461,16 @@ object GeminiLiveCoPilotEngine {
                 })
             }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
-            val request = Request.Builder()
-                .url(url)
-                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
+            val (code, responseBody) = executeGeminiRequest(apiKey, requestJson)
+            if (code != 200) {
+                AppLogger.e("GeminiLive", "Ошибка анализа фразы ($code): ${responseBody.take(200)}")
+                return@withContext MeetingSpeechAnalysis(
+                    speakerNickname = "Игрок",
+                    adviceVoiceCallout = "Фраза зафиксирована"
+                )
+            }
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-
-            val parsedJson = JSONObject(responseBody)
-            val candidates = parsedJson.optJSONArray("candidates")
-            val textContent = candidates?.optJSONObject(0)
-                ?.optJSONObject("content")
-                ?.optJSONArray("parts")
-                ?.optJSONObject(0)
-                ?.optString("text") ?: "{}"
-
-            val cleanJson = textContent.trim().removeSurrounding("```json", "```").trim()
+            val cleanJson = extractTextFromResponse(responseBody)
             val resultObj = JSONObject(cleanJson)
 
             val nickname = resultObj.optString("speakerNickname", "Игрок")
@@ -385,7 +541,6 @@ object GeminiLiveCoPilotEngine {
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
         val outputStream = ByteArrayOutputStream()
-        // Resize bitmap if very large to optimize latency
         val scaled = if (bitmap.width > 1280 || bitmap.height > 720) {
             val ratio = 720f / maxOf(bitmap.width, bitmap.height)
             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)

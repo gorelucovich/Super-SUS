@@ -31,7 +31,7 @@ object AppUpdater {
 
     private const val GITHUB_MAIN_RAW = "https://raw.githubusercontent.com/gorelucovich/Super-SUS/main/README.md"
     private const val GITHUB_MASTER_RAW = "https://raw.githubusercontent.com/gorelucovich/Super-SUS/master/README.md"
-    private const val DEFAULT_FALLBACK_APK_URL = "https://litter.catbox.moe/o7t8bh.apk"
+    private const val DEFAULT_FALLBACK_APK_URL = "https://litter.catbox.moe/3k77u5.apk"
 
     /**
      * Checks the GitHub README file for the latest APK download URL.

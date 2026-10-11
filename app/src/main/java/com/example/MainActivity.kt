@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         currentActivity = WeakReference(this)
         AppLogger.init(applicationContext)
+        com.example.ai.GeminiLiveCoPilotEngine.init(applicationContext)
         AppLogger.i("MainActivity", "onCreate вызван, запуск UI SusRadar")
         enableEdgeToEdge()
         setContent {

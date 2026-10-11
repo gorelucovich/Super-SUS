@@ -55,7 +55,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,6 +82,7 @@ fun CoPilotHubScreen(
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Live Co-Pilot, 1 = Игроки (Никнеймы), 2 = База знаний
     var showAddPlayerDialog by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
 
     val isKeyConfigured by GeminiLiveCoPilotEngine.isKeyConfigured.collectAsState()
     val isStreaming by GameStreamService.isStreaming.collectAsState()
@@ -137,11 +140,14 @@ fun CoPilotHubScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // API Key Status Banner
+                    // API Key Status Banner (Interactive)
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = if (isKeyConfigured) Color(0xFF064E3B) else Color(0xFF7F1D1D),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showApiKeyDialog = true }
+                            .testTag("api_key_banner")
                     ) {
                         Row(
                             modifier = Modifier.padding(10.dp),
@@ -154,22 +160,28 @@ fun CoPilotHubScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isKeyConfigured) "Google Gemini API подключен" else "Ключ GEMINI_API_KEY не задан",
+                                    text = if (isKeyConfigured) "Google Gemini API подключен (${GeminiLiveCoPilotEngine.PRIMARY_MODEL})" else "Ключ GEMINI_API_KEY не задан",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = Color.White
                                 )
                                 Text(
                                     text = if (isKeyConfigured)
-                                        "Мультимодальный анализ экрана и детекция лжи активны"
+                                        "Зрение и детекция лжи активны • Нажмите для настроек"
                                     else
-                                        "Добавьте GEMINI_API_KEY в панели Secrets",
+                                        "Нажмите сюда, чтобы ввести свой ключ или проверить статус",
                                     fontSize = 10.sp,
                                     color = Color.LightGray
                                 )
                             }
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = "Настроить ключ",
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 }
@@ -562,6 +574,117 @@ fun CoPilotHubScreen(
             dismissButton = {
                 TextButton(onClick = { showAddPlayerDialog = false }) {
                     Text("Отмена")
+                }
+            }
+        )
+    }
+
+    if (showApiKeyDialog) {
+        val coroutineScope = rememberCoroutineScope()
+        var enteredKey by remember {
+            mutableStateOf(GeminiLiveCoPilotEngine.getSavedCustomApiKey(context))
+        }
+        var testStatus by remember { mutableStateOf<String?>(null) }
+        var isTesting by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showApiKeyDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF818CF8))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Настройка Gemini API")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Актуальная модель: ${GeminiLiveCoPilotEngine.PRIMARY_MODEL} (с резервом на ${GeminiLiveCoPilotEngine.FALLBACK_MODEL}).",
+                        fontSize = 12.sp,
+                        color = Color.LightGray
+                    )
+                    Text(
+                        text = "Бесплатный ключ можно создать в aistudio.google.com или настроить через панель Secrets.",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    OutlinedTextField(
+                        value = enteredKey,
+                        onValueChange = {
+                            enteredKey = it
+                            testStatus = null
+                        },
+                        label = { Text("Gemini API Key") },
+                        placeholder = { Text("Вставьте ваш ключ API...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    testStatus?.let { status ->
+                        Text(
+                            text = status,
+                            fontSize = 12.sp,
+                            color = if (status.startsWith("Успешно")) Color(0xFF34D399) else Color(0xFFF87171)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val keyToTest = enteredKey.ifBlank {
+                                    GeminiLiveCoPilotEngine.getEffectiveApiKey(context)
+                                }
+                                if (keyToTest.isBlank()) {
+                                    testStatus = "Введите ключ для проверки"
+                                    return@OutlinedButton
+                                }
+                                isTesting = true
+                                testStatus = "Проверка связи с ${GeminiLiveCoPilotEngine.PRIMARY_MODEL}..."
+                                coroutineScope.launch {
+                                    val result = GeminiLiveCoPilotEngine.testApiKey(keyToTest)
+                                    isTesting = false
+                                    testStatus = result.fold(
+                                        onSuccess = { it },
+                                        onFailure = { "Ошибка: ${it.message}" }
+                                    )
+                                }
+                            },
+                            enabled = !isTesting
+                        ) {
+                            Text(if (isTesting) "Проверка..." else "Проверить ключ")
+                        }
+
+                        if (GeminiLiveCoPilotEngine.getSavedCustomApiKey(context).isNotBlank()) {
+                            TextButton(
+                                onClick = {
+                                    GeminiLiveCoPilotEngine.saveCustomApiKey(context, "")
+                                    enteredKey = ""
+                                    testStatus = "Пользовательский ключ удалён"
+                                }
+                            ) {
+                                Text("Очистить", color = Color(0xFFF87171))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        GeminiLiveCoPilotEngine.saveCustomApiKey(context, enteredKey)
+                        showApiKeyDialog = false
+                    }
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Закрыть")
                 }
             }
         )
