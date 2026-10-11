@@ -1,9 +1,16 @@
 # Super-SUS / SusRadar — AI Детектор ролей для Super Sus
 
 LATEST_VERSION=1.3.0
-LATEST_APK_URL=https://litter.catbox.moe/9sqeo2.apk
+LATEST_APK_URL=https://transfiles.ru/6pwl4
 
-* 🚀 [Скачать актуальный SusRadar v1.3.0 APK (Прямая ссылка)](https://litter.catbox.moe/9sqeo2.apk)
+## 🇷🇺 Ссылки для скачивания (Российские серверы, без VPN и блокировок)
+
+* 🚀 **[Скачать SusRadar.apk на TransFiles.ru (Прямой APK)](https://transfiles.ru/6pwl4)** — Быстрая загрузка с российского сервера в 1 клик.
+* 📦 **[Скачать SusRadar_v1.3.0.zip на TransFiles.ru (ZIP-архив с APK)](https://transfiles.ru/0ti61)** — Если ваш мобильный браузер предупреждает или блокирует прямую загрузку `.apk`.
+
+### 🌍 Международные резервные зеркала:
+* 🪞 [Зеркало Catbox Litterbox](https://litter.catbox.moe/9sqeo2.apk)
+* 🪞 [Зеркало tmpfiles](https://tmpfiles.org/dl/1791708218.32697013e9019932/wkAA6rXTchMk/app-debug.apk)
 
 ---
 
@@ -19,6 +26,6 @@ LATEST_APK_URL=https://litter.catbox.moe/9sqeo2.apk
 1. В вашем репозитории `https://github.com/gorelucovich/Super-SUS` откройте **Settings** и убедитесь, что репозиторий установлен как **Public (Публичный)**.
 2. В файле `README.md` укажите актуальную ссылку:
 ```
-LATEST_APK_URL=https://litter.catbox.moe/9sqeo2.apk
+LATEST_APK_URL=https://transfiles.ru/6pwl4
 ```
 3. При нажатии кнопки **«Облачное обновление» (📥)** в приложении оно автоматически считывает эту ссылку и обновляет приложение!
