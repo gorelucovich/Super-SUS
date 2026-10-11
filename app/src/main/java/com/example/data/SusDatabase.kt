@@ -37,11 +37,39 @@ interface SusDao {
 
     @Query("SELECT COUNT(*) FROM match_records")
     fun getMatchesCount(): Flow<Int>
+
+    // --- Профили игроков (привязка СТРОГО к никнеймам) ---
+    @Query("SELECT * FROM player_profiles ORDER BY lastSeenTimestamp DESC")
+    fun getAllPlayerProfiles(): Flow<List<PlayerProfileEntity>>
+
+    @Query("SELECT * FROM player_profiles WHERE LOWER(nickname) = LOWER(:nickname) LIMIT 1")
+    suspend fun getPlayerProfile(nickname: String): PlayerProfileEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPlayerProfile(profile: PlayerProfileEntity)
+
+    @Query("DELETE FROM player_profiles WHERE nickname = :nickname")
+    suspend fun deletePlayerProfile(nickname: String)
+
+    // --- База знаний ИИ-напарника Gemini Live ---
+    @Query("SELECT * FROM copilot_knowledge ORDER BY timestamp DESC")
+    fun getAllKnowledge(): Flow<List<CoPilotKnowledgeEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertKnowledge(knowledge: CoPilotKnowledgeEntity): Long
+
+    @Query("DELETE FROM copilot_knowledge WHERE id = :id")
+    suspend fun deleteKnowledge(id: Long)
 }
 
 @Database(
-    entities = [MatchRecordEntity::class, LearnedWeightEntity::class],
-    version = 1,
+    entities = [
+        MatchRecordEntity::class,
+        LearnedWeightEntity::class,
+        PlayerProfileEntity::class,
+        CoPilotKnowledgeEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class SusDatabase : RoomDatabase() {
@@ -73,6 +101,7 @@ abstract class SusDatabase : RoomDatabase() {
             CoroutineScope(Dispatchers.IO).launch {
                 INSTANCE?.let { database ->
                     seedDefaultWeights(database.susDao())
+                    seedSampleProfiles(database.susDao())
                 }
             }
         }
@@ -88,7 +117,6 @@ abstract class SusDatabase : RoomDatabase() {
             )
             dao.insertWeights(initialWeights)
 
-            // Seed 2 initial matches for learning baseline
             dao.insertMatch(
                 MatchRecordEntity(
                     timestamp = System.currentTimeMillis() - 86400000,
@@ -98,13 +126,44 @@ abstract class SusDatabase : RoomDatabase() {
                     isCalibrated = true
                 )
             )
-            dao.insertMatch(
-                MatchRecordEntity(
-                    timestamp = System.currentTimeMillis() - 43200000,
-                    outcomeSummary = "Победа предателей (Калибровка 78%)",
-                    accuracyPercent = 78,
-                    notes = "Синий был Шпионом, Зелёный — Доктором",
-                    isCalibrated = true
+        }
+
+        private suspend fun seedSampleProfiles(dao: SusDao) {
+            val sampleProfiles = listOf(
+                PlayerProfileEntity(
+                    nickname = "ShadowHunter",
+                    totalMatches = 5,
+                    timesImpostor = 3,
+                    timesCrew = 2,
+                    timesNeutral = 0,
+                    liesDetected = 2,
+                    favoriteRoles = "Шпион, Ниндзя",
+                    equippedModulesNotes = "Модуль маскировки на 10 уровне",
+                    trustScore = 35,
+                    notes = "Часто фейкает задания в Электрике"
+                ),
+                PlayerProfileEntity(
+                    nickname = "CosmoDoc",
+                    totalMatches = 4,
+                    timesImpostor = 0,
+                    timesCrew = 4,
+                    timesNeutral = 0,
+                    liesDetected = 0,
+                    favoriteRoles = "Доктор, Медик",
+                    equippedModulesNotes = "Модуль щита реанимации",
+                    trustScore = 95,
+                    notes = "Всегда делает визуал в Медпункте, говорит правду"
+                )
+            )
+            for (p in sampleProfiles) {
+                dao.upsertPlayerProfile(p)
+            }
+
+            dao.insertKnowledge(
+                CoPilotKnowledgeEntity(
+                    category = "GAME_RULE",
+                    subject = "Прокачка ролей",
+                    content = "Прокачка до 20 уровня: на 10 уровне открывается модуль на выбор, на 20 уровне — уникальный модуль роли."
                 )
             )
         }

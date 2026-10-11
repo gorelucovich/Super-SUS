@@ -432,7 +432,11 @@ fun TacticalOverlayWidgetContent(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // AI Deduction Verdict Banner
+                val liveAdvice by com.example.ai.GeminiLiveCoPilotEngine.activeAdvice.collectAsState()
+                val liveRole by com.example.ai.GeminiLiveCoPilotEngine.myRoleInfo.collectAsState()
+                val isStreaming by com.example.service.GameStreamService.isStreaming.collectAsState()
+
+                // AI Deduction Verdict Banner with Gemini Live Co-Pilot
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = Color(0xFF1E1B4B),
@@ -442,16 +446,23 @@ fun TacticalOverlayWidgetContent(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Radar, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("ДЕДУКТИВНЫЙ ВЕРДИКТ:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC))
+                            Text("GEMINI LIVE CO-PILOT:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA5B4FC))
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(if (isStreaming) "🟢 Экран в эфире" else "⚪ Экран ожидает", fontSize = 9.sp, color = if (isStreaming) Color(0xFF10B981) else Color.Gray)
+                        }
+                        liveRole?.let { roleText ->
+                            Text("👤 $roleText", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = verdict,
+                            text = liveAdvice.ifBlank { verdict },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White,
                             lineHeight = 14.sp
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("🎙️ Hands-free микрофон слушает ваш голос", fontSize = 8.sp, color = Color(0xFF94A3B8))
                     }
                 }
 

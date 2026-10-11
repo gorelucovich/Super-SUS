@@ -53,9 +53,39 @@ class SusRadarViewModel(
     val matchHistory: StateFlow<List<MatchRecordEntity>> = dao.getAllMatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val playerProfiles: StateFlow<List<com.example.data.PlayerProfileEntity>> = dao.getAllPlayerProfiles()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val knowledgeBase: StateFlow<List<com.example.data.CoPilotKnowledgeEntity>> = dao.getAllKnowledge()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val isOverlayActive: StateFlow<Boolean> = OverlayRadarService.isServiceRunning
 
     private var speechRecognizer: SpeechRecognizer? = null
+
+    fun upsertPlayerProfile(profile: com.example.data.PlayerProfileEntity) {
+        viewModelScope.launch {
+            dao.upsertPlayerProfile(profile)
+        }
+    }
+
+    fun deletePlayerProfile(nickname: String) {
+        viewModelScope.launch {
+            dao.deletePlayerProfile(nickname)
+        }
+    }
+
+    fun insertKnowledge(category: String, subject: String, content: String) {
+        viewModelScope.launch {
+            dao.insertKnowledge(com.example.data.CoPilotKnowledgeEntity(category = category, subject = subject, content = content))
+        }
+    }
+
+    fun deleteKnowledge(id: Long) {
+        viewModelScope.launch {
+            dao.deleteKnowledge(id)
+        }
+    }
 
     init {
         // Sync with overlay service

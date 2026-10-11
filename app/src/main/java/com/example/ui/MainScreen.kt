@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Layers
@@ -53,6 +54,7 @@ enum class SusDestination(
     val tag: String
 ) {
     RADAR("Радар", Icons.Default.Radar, "nav_radar"),
+    COPILOT("Gemini Live", Icons.Default.AutoAwesome, "nav_copilot"),
     OVERLAY("Оверлей", Icons.Default.Layers, "nav_overlay"),
     LEARNING("Обучение", Icons.Default.Psychology, "nav_learning"),
     ROLES("Роли", Icons.Default.MenuBook, "nav_roles")
@@ -156,6 +158,7 @@ fun MainScreen(viewModel: SusRadarViewModel) {
             ) { destination ->
                 when (destination) {
                     SusDestination.RADAR -> LiveMatchScreen(viewModel = viewModel)
+                    SusDestination.COPILOT -> com.example.ui.screens.CoPilotHubScreen(viewModel = viewModel)
                     SusDestination.OVERLAY -> OverlayControlScreen(viewModel = viewModel)
                     SusDestination.LEARNING -> LearningCenterScreen(viewModel = viewModel)
                     SusDestination.ROLES -> RolesWikiScreen()

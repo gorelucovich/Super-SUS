@@ -5,12 +5,14 @@ import com.example.model.EventType
 import com.example.model.Faction
 import com.example.model.PlayerColor
 import com.example.model.PlayerInGame
+import com.example.model.SusGameMode
 
 object DeductionEngine {
 
     fun recalculatePlayerProbabilities(
         player: PlayerInGame,
-        weights: Map<String, Float>
+        weights: Map<String, Float>,
+        gameMode: SusGameMode = SusGameMode.ALL_ROLES
     ): PlayerInGame {
         if (!player.isAlive || player.isEjected) {
             return player
@@ -90,16 +92,20 @@ object DeductionEngine {
             else -> Faction.UNKNOWN
         }
 
-        // Predicted Role matching Super Sus
+        // Predicted Role matching Super Sus and selected game mode rules
         val predictedRole = when {
             isFlaggedJoker || jokClamped >= 70 -> "Джокер"
             player.events.any { it.type == EventType.REVIVED_PLAYER } -> "Доктор"
-            hasVisualProof && impClamped < 30 -> "Космонавт (Визуал/Код)"
+            hasVisualProof && impClamped < 30 -> {
+                if (!gameMode.hasVanillaCrew) "Спецроль экипажа (Визуал/Код)" else "Космонавт (Визуал/Код)"
+            }
             hasVisualProof && impClamped >= 30 -> "Подозрение (Возможен Код!)"
-            player.events.any { it.type == EventType.VENTED } && impClamped < 50 -> "Инженер / Подрыватель"
+            player.events.any { it.type == EventType.VENTED } && impClamped < 50 -> "Инженер"
             impClamped >= 80 -> "Шпион / Предатель"
             impClamped >= 60 -> "Предатель"
-            else -> "Космонавт"
+            else -> {
+                if (!gameMode.hasVanillaCrew) "Спецроль экипажа (Все Роли)" else "Космонавт"
+            }
         }
 
         return player.copy(
